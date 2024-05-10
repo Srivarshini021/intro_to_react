@@ -39,7 +39,6 @@ export const UseApi = () => {
         
         const API_KEY = 'bcab9f4b97ee4fec8bade876b485bd5c';
         const endpoint = `https://api.opencagedata.com/geocode/v1/json?q=${county} County, ${state}, United States&key=${API_KEY}`;
-        
         const promise = await fetch(endpoint);
 
         if(promise) {

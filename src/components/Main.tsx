@@ -33,78 +33,69 @@ END OF TERMS AND CONDITIONS
 
 
 import { useState, useEffect } from "react";
-import { Stack, Paper, Typography, styled } from "@mui/material";
+import { Stack } from "@mui/material";
 import { UseDeckMap } from "../hooks/UseDeckMap";
 import { UseApi } from "../hooks/UseApi";
 import DeckMap from "./DeckMap";
-import { Button } from "@mui/material";
-import ExampleLineChart from "./ExampleLineChart";
+import loadJSON from "../util/loadJSON";
+import Overlay from "./Overlay";
 
-interface MainProps {
-    title: string
+interface LocationData {
+    name: string;
+    GISJOIN: string;
 }
 
-export default function Main({ title }: MainProps) {
+export default function Main() {
 
     const Map = UseDeckMap();
     const Api = UseApi();
 
     const [selectedState, setSelectedState] = useState('');
-    const [countyList, setCountyList] = useState([]);
+    const [selectedCounty, setSelectedCounty] = useState('');
+    const [stateCountyData, setStateCountyData] = useState<{ [key: string]: LocationData[] }>({});
 
-
+    /* Call util function that loads state / county data into dictionary */
     useEffect(() => {
-        /**
-         * Get the list of associated counties
-         * Call to setCountyList() with the list of associated counties
-         */
-    }, [selectedState]);
+        setStateCountyData(loadJSON());
+    }, []); 
 
-
-    /**
-     * This is the function that connects to the online API and retrieves information associated
-     *      with a state/county. Included in that information is the coordinates. Currently
-     *      state/county are hard-coded to 'Larimer', and 'Colorado'. 
-     * 
-     * This function logs to the console the return from the API. Open the inspection pane in your
-     *      browser to see what is printed in the console. You can usually do this by right clicking
-     *      on the page and selection 'inspect', then going to the console tab.
-     * 
-     * We'll talk about what this function is doing during the meeting.
-     */
-    const sendCoordinatesRequest = async() => {
-        const response = await Api.functions.sendRequest('Larimer', 'Colorado');
-        if (response) {
-            console.log({response});
+    /* When the selected county changes, call the api */ 
+    useEffect(() => {
+        if (selectedState && selectedCounty) {
+            sendCoordinatesRequest(selectedCounty, selectedState);
         }
-        else console.log('Error sending API request');
+    }, [selectedCounty]);
+
+
+    /* 
+        Send request to grab coordinates of the first place in the specified county.
+        Then zoom map to that location.
+    */
+    const sendCoordinatesRequest = async(selectedCounty: string, selectedState: string) => {
+        const response = await Api.functions.sendRequest(selectedCounty, selectedState);
+        if (response.results && response.results.length > 0) {
+            const longitude = response.results[0].geometry.lng;
+            const latitude = response.results[0].geometry.lat
+            Map.functions.updateMapViewState([longitude, latitude]);
+        } else {
+            console.log('Error sending API request');
+        }
     }
 
     return (
         <>
             <DeckMap Map={Map} />
             <Stack direction='column' alignItems='center'>
-                <StyledPaper elevation={3}>
-                    <Stack direction='column' alignItems='center' spacing={2}>
-                        <Typography align='center'>Title: {title}</Typography>
-                        <Button onClick={sendCoordinatesRequest} variant='outlined'>Send Request</Button>
-                    </Stack>
-                </StyledPaper>
-                {/* Uncomment below to see a chart example */}
-                {/* <Paper className={classes.root} elevation={3}>
-                    <ExampleLineChart/>
-                </Paper> */}
+                <Overlay 
+                    stateCountyData={stateCountyData}
+                    setSelectedState={setSelectedState}
+                    setSelectedCounty={setSelectedCounty}
+                />
             </Stack>
         </>
     );
 
 }
 
-const StyledPaper = styled(Paper)({
-    width: '25vw',
-    margin: '10px',
-    padding: '10px',
-    zIndex: 5000,
-    opacity: 0.8
-})
+
 
