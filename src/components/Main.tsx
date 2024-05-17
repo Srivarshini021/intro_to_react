@@ -71,7 +71,7 @@ export default function Main({ title }: MainProps) {
 
 
     useEffect(() => {
-        /**
+        /** 
          * Get the list of associated counties
          * Call to setCountyList() with the list of associated counties
          */
