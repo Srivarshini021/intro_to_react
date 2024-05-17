@@ -32,16 +32,31 @@ END OF TERMS AND CONDITIONS
 */
 
 
-import { useState, useEffect } from "react";
-import { Stack, Paper, Typography, styled } from "@mui/material";
+import React, { useState, useEffect } from "react";
+import { Stack, Paper, Typography, styled, TextField } from "@mui/material";
 import { UseDeckMap } from "../hooks/UseDeckMap";
 import { UseApi } from "../hooks/UseApi";
 import DeckMap from "./DeckMap";
 import { Button } from "@mui/material";
-import ExampleLineChart from "./ExampleLineChart";
+import stateData from '../library/state_data.json'
+import countyData from '../library/county_data.json'
+
+import VowelConsonantPieChart from "./PieChart";
+import CountyLettersLineChart from "./LineChart";
+import CountyLettersHistogram from "./Histogram";
 
 interface MainProps {
     title: string
+}
+
+interface State{
+    name: string;
+    GISJOIN: string;
+}
+
+interface County{
+    name: string;
+    GISJOIN: string;
 }
 
 export default function Main({ title }: MainProps) {
@@ -49,8 +64,10 @@ export default function Main({ title }: MainProps) {
     const Map = UseDeckMap();
     const Api = UseApi();
 
-    const [selectedState, setSelectedState] = useState('');
-    const [countyList, setCountyList] = useState([]);
+    const [selectedState, setSelectedState] = useState<string | null>(null);
+    const [countyList, setCountyList] = useState<County[]>([]);
+    const [states, setStates] = useState<State[]>(stateData);
+    const [searchTerm, setSearchTerm] = useState<string>("");
 
 
     useEffect(() => {
@@ -58,7 +75,68 @@ export default function Main({ title }: MainProps) {
          * Get the list of associated counties
          * Call to setCountyList() with the list of associated counties
          */
+
+        if (selectedState) {
+            const selectedStateGISJOIN = selectedState.substring(0, 4);
+            const filteredCounties = countyData.filter((county : County) =>
+                county.GISJOIN.startsWith(selectedStateGISJOIN)
+        );
+        setCountyList(filteredCounties);
+    } else {
+        setCountyList([]);
+    }
     }, [selectedState]);
+
+    const handleStateClick = (stateGISJOIN: string) => {
+        setSelectedState(stateGISJOIN);
+    };
+
+    const clearSelection = () => {
+        setSelectedState(null);
+        setSearchTerm(''); //Clear search term when selection is cleared as well
+    };
+
+    const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(event.target.value);
+    };
+
+    const filteredCountyList = countyList.filter(county =>
+        county.name.toLocaleLowerCase().includes(searchTerm.toLocaleLowerCase())
+    );
+
+    const handleCountyClick = async (countyName: string, stateName: string) => {
+        try{
+        const response = await Api.functions.sendRequest(countyName, stateName);
+        if (response) {
+            console.log('API Response:',response);
+            const{lat,lon}= response;
+
+            if(typeof lat === 'number' && typeof lon === 'number') {
+                console.log('updating map view of lat: ${lat}, lon: ${lon}');
+                Map.functions.updateMapViewState([lon, lat]);
+            } else {
+                console.error('Invalid coordinates:', response);
+                alert("received invalid coordinates from the API");
+            }
+        } else {
+            console.log("error sending API request");
+            alert("Error sending API request");
+        }
+    }
+        catch(error){
+            console.error("Error in handleCountyClick:", error);
+            alert("An error occured while doing handleCountyClick");
+        }
+    };
+
+    // const sendCoordinatesRequest = async () => {
+    //     const response = await Api.functions.sendRequest('Larimer', 'Colorado');
+    //     if (response) {
+    //         console.log({response});
+    //     } else {
+    //         console.log('Error sending API request')
+    //     }
+    // }
 
 
     /**
@@ -72,13 +150,13 @@ export default function Main({ title }: MainProps) {
      * 
      * We'll talk about what this function is doing during the meeting.
      */
-    const sendCoordinatesRequest = async() => {
-        const response = await Api.functions.sendRequest('Larimer', 'Colorado');
-        if (response) {
-            console.log({response});
-        }
-        else console.log('Error sending API request');
-    }
+    // const sendCoordinatesRequest = async() => {
+    //     const response = await Api.functions.sendRequest('Larimer', 'Colorado');
+    //     if (response) {
+    //         console.log({response});
+    //     }
+    //     else console.log('Error sending API request');
+    // }
 
     return (
         <>
@@ -87,9 +165,52 @@ export default function Main({ title }: MainProps) {
                 <StyledPaper elevation={3}>
                     <Stack direction='column' alignItems='center' spacing={2}>
                         <Typography align='center'>Title: {title}</Typography>
-                        <Button onClick={sendCoordinatesRequest} variant='outlined'>Send Request</Button>
                     </Stack>
                 </StyledPaper>
+                <StyledPaper elevation={3}>
+                    <Typography align="center">States:</Typography>
+                    <ul>
+                    {states.map((state) => (
+                            <li key={state.GISJOIN} onClick={() => handleStateClick(state.GISJOIN)}>
+                                {state.name}
+                            </li>
+                        ))}
+                    </ul>
+                    {selectedState && (
+                        <div>
+                            <Button onClick={clearSelection} variant="outlined">Clear Selection</Button>
+                            <TextField
+                                label="Search Counties"
+                                value={searchTerm}
+                                onChange={handleSearchChange}
+                                variant='outlined'
+                            />
+                            <Typography align="center">Countries:</Typography>
+                            <ul>
+                                {filteredCountyList.map((county) => (
+                                    <li key={county.GISJOIN} onClick={() => handleCountyClick(county.name, selectedState)}>
+                                        {county.name}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </StyledPaper>
+
+                <StyledPaper elevation={3}>
+                    <Typography align="center"> Countries by First letter as vowel and Consonants:</Typography>
+                    <VowelConsonantPieChart/>
+                </StyledPaper>
+                <StyledPaper elevation={3}>
+                    <Typography align="center">Number of letter per county:</Typography>
+                    <CountyLettersLineChart/>
+                </StyledPaper>
+                <StyledPaper elevation={3}>
+                    <Typography align="center">Distribution of Countries by Name length:</Typography>
+                    <CountyLettersHistogram/>
+                </StyledPaper>
+                
+
                 {/* Uncomment below to see a chart example */}
                 {/* <Paper className={classes.root} elevation={3}>
                     <ExampleLineChart/>
