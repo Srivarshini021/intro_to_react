@@ -33,7 +33,7 @@ END OF TERMS AND CONDITIONS
 
 
 import React, { useState, useEffect } from "react";
-import { Stack, Paper, Typography, styled, TextField } from "@mui/material";
+import { Stack, Paper, Typography, styled, TextField, Grid, } from "@mui/material";
 import { UseDeckMap } from "../hooks/UseDeckMap";
 import { UseApi } from "../hooks/UseApi";
 import DeckMap from "./DeckMap";
@@ -44,6 +44,9 @@ import countyData from '../library/county_data.json'
 import VowelConsonantPieChart from "./PieChart";
 import CountyLettersLineChart from "./LineChart";
 import CountyLettersHistogram from "./Histogram";
+
+import StateComponent from "./State.tsx";
+import CountyComponent from "./County.tsx";
 
 interface MainProps {
     title: string
@@ -58,6 +61,14 @@ interface County{
     name: string;
     GISJOIN: string;
 }
+
+const ContentEnum = {
+    STATES: 'STATES',
+    PIE_CHART: 'PIE_CHART',
+    LINE_CHART: 'LINE_CHART',
+    HISTOGRAM: 'HISTOGRAM',
+};
+
 
 export default function Main({ title }: MainProps) {
 
@@ -89,11 +100,13 @@ export default function Main({ title }: MainProps) {
 
     const handleStateClick = (stateGISJOIN: string) => {
         setSelectedState(stateGISJOIN);
+
+        setSearchTerm(''); 
     };
 
     const clearSelection = () => {
         setSelectedState(null);
-        setSearchTerm(''); //Clear search term when selection is cleared as well
+        setSearchTerm(''); 
     };
 
     const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,15 +122,28 @@ export default function Main({ title }: MainProps) {
         const response = await Api.functions.sendRequest(countyName, stateName);
         if (response) {
             console.log('API Response:',response);
-            const{lat,lon}= response;
+            //const{lat,lon}= response;
 
-            if(typeof lat === 'number' && typeof lon === 'number') {
-                console.log('updating map view of lat: ${lat}, lon: ${lon}');
-                Map.functions.updateMapViewState([lon, lat]);
+            const firstResult = response.results[0];
+            //const {lat, lon} = firstResult.geometry;
+            console.log('First Result:', firstResult);
+
+            if (firstResult && firstResult.geometry) {
+                const {lat, lng} = firstResult.geometry;
+                console.log ('Coordinates:', {lat,lng});
+            
+
+            if(typeof lat === 'number' && typeof lng === 'number') {
+                console.log('updating map view of lat: ${lat}, lon: ${lng}');
+                Map.functions.updateMapViewState([lng, lat]);
             } else {
-                console.error('Invalid coordinates:', response);
+                console.error('Invalid coordinates:', {lat, lng});
                 alert("received invalid coordinates from the API");
             }
+        } else {
+            console.error('Invalid geometry data:', firstResult);
+            alert('Received invalid geometry data from the API');
+        }
         } else {
             console.log("error sending API request");
             alert("Error sending API request");
@@ -161,71 +187,74 @@ export default function Main({ title }: MainProps) {
     return (
         <>
             <DeckMap Map={Map} />
-            <Stack direction='column' alignItems='center'>
+            <StyledPaper elevation={3}>
+                <Stack direction="row" spacing={2} justifyContent="center">
+                    <Button variant="contained" onClick={() => setSelectedState(ContentEnum.STATES)}>States</Button>
+                    <Button variant="contained" onClick={() => setSelectedState(ContentEnum.PIE_CHART)}>Pie Chart</Button>
+                    <Button variant="contained" onClick={() => setSelectedState(ContentEnum.LINE_CHART)}>Line Chart</Button>
+                    <Button variant="contained" onClick={() => setSelectedState(ContentEnum.HISTOGRAM)}>Histogram</Button>
+                </Stack>
+            </StyledPaper>
+            {selectedState === ContentEnum.STATES && (
+                <StateComponent states={states} handleStateClick={handleStateClick} />
+            )}
+            {selectedState === ContentEnum.PIE_CHART && (
                 <StyledPaper elevation={3}>
-                    <Stack direction='column' alignItems='center' spacing={2}>
-                        <Typography align='center'>Title: {title}</Typography>
-                    </Stack>
+                    <Typography align="center">Countries by First letter as vowel and Consonants</Typography>
+                    <VowelConsonantPieChart />
                 </StyledPaper>
+            )}
+            {/* {selectedState === ContentEnum.LINE_CHART && (
+                <Grid container spacing={2} alignItems="flex-start">
+                    <Grid item xs={6}>
+                        <StyledPaper elevation={3}>
+                            <Typography align="center">Number of letter per county</Typography>
+                            <CountyLettersLineChart />
+                        </StyledPaper>
+                    </Grid>
+                </Grid>
+            )} */}
+            {selectedState === ContentEnum.LINE_CHART && (
                 <StyledPaper elevation={3}>
-                    <Typography align="center">States:</Typography>
-                    <ul>
-                    {states.map((state) => (
-                            <li key={state.GISJOIN} onClick={() => handleStateClick(state.GISJOIN)}>
-                                {state.name}
-                            </li>
-                        ))}
-                    </ul>
-                    {selectedState && (
-                        <div>
-                            <Button onClick={clearSelection} variant="outlined">Clear Selection</Button>
-                            <TextField
-                                label="Search Counties"
-                                value={searchTerm}
-                                onChange={handleSearchChange}
-                                variant='outlined'
-                            />
-                            <Typography align="center">Countries:</Typography>
-                            <ul>
-                                {filteredCountyList.map((county) => (
-                                    <li key={county.GISJOIN} onClick={() => handleCountyClick(county.name, selectedState)}>
-                                        {county.name}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
+                    <Typography align="center">Number of letter per county</Typography>
+                    <CountyLettersLineChart />
                 </StyledPaper>
-
+            )}
+            {selectedState === ContentEnum.HISTOGRAM && (
                 <StyledPaper elevation={3}>
-                    <Typography align="center"> Countries by First letter as vowel and Consonants:</Typography>
-                    <VowelConsonantPieChart/>
+                    <Typography align="center">Distribution of Countries by Name length</Typography>
+                    <CountyLettersHistogram />
                 </StyledPaper>
-                <StyledPaper elevation={3}>
-                    <Typography align="center">Number of letter per county:</Typography>
-                    <CountyLettersLineChart/>
-                </StyledPaper>
-                <StyledPaper elevation={3}>
-                    <Typography align="center">Distribution of Countries by Name length:</Typography>
-                    <CountyLettersHistogram/>
-                </StyledPaper>
-                
-
-                {/* Uncomment below to see a chart example */}
-                {/* <Paper className={classes.root} elevation={3}>
-                    <ExampleLineChart/>
-                </Paper> */}
-            </Stack>
+            )}
+            {(selectedState !== ContentEnum.STATES &&
+                selectedState !== ContentEnum.PIE_CHART &&
+                selectedState !== ContentEnum.LINE_CHART &&
+                selectedState !== ContentEnum.HISTOGRAM) && (
+                <CountyComponent
+                    countyList={countyList}
+                    filteredCountyList={filteredCountyList}
+                    searchTerm={searchTerm}
+                    handleSearchChange={handleSearchChange}
+                    handleCountyClick={handleCountyClick}
+                    clearSelection={clearSelection}
+                />
+            )}
         </>
     );
+};
 
-}
 
 const StyledPaper = styled(Paper)({
     width: '25vw',
     margin: '10px',
     padding: '10px',
     zIndex: 5000,
-    opacity: 0.8
-})
+    opacity: 0.8,'& ul': {
+        listStyle: 'none', // Remove bullet points from lists
+        padding: 0,
+    },
+    '& ul li': {
+        cursor: 'pointer',
+    },
+});
 
